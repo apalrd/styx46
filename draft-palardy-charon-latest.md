@@ -100,13 +100,13 @@ As the IPv4 address space is insufficient for full IPv6 translation, some mechan
                      |
           +----------+----------+
           |                     |
-   (DNS)  |                     |  (IPv4 Traffic)
+ (DNS A)  |                     |  (IPv4 Traffic)
           v                     v
       +---+---------------------+---+
       |     IPv4/IPv6 Translator    |
       +---+---------------------+---+
           ^                     ^
-   (DNS)  |                     |  (IPv6 Traffic)
+(DNS AAAA)|                     |  (IPv6 Traffic)
           |                     |
           +----------+----------+
                      |
@@ -135,39 +135,148 @@ With this option, a SIIT translator may translate addresses using any of the fol
 
 All three methods may be used simultaneously, see [Deployment Architectures] for examples. 
 
-TODO dynamic mapping entries map a single IPV4 and a single IPv6, and are re-used for all cases where that IPv6 is seen (including IPv6-initiated mappings and multple DNS hostnames)
+Dynamic mapping entries map a single IPV4 and a single IPv6 (prefix length 32 and 128 respectively), and MUST be re-used for all cases where that IPv6 host address is encountered (including IPv6-initiated mappings and multple DNS hostnames)
 
 ## IPv6 initiated Dynamic Mapping
 
-TODO IPv6-initiated mappings are created when an IPv6 packet is received by the translator, where the destination address matches an existing address mapping, but the source address cannot be mapped. The translator will allocate an IPv4 host address out of its dynamic pool and create a mapping between the source IPv6 address and the dynamic IPv4 host address.
+IPv6-initiated dynamic mappings are created when an IPv6 packet is received by the translator such that the destination IPv6 address can be translated using an existing mapping method (encoded, explicit, or dynamic), but the source IPv6 address does not match any existing mapping entry.
+
+In this case, the translator MUST allocate an available IPv4 address from its dynamic pool and create a new dynamic mapping entry binding the source IPv6 address to the allocated IPv4 address. This mapping is then used to translate the source address for all subsequent packets in this flow and any future traffic involving the same IPv6 address.
+
+If no IPv4 addresses are available in the dynamic pool, the translator MUST drop the packet and SHOULD generate an appropriate ICMP error indicating address translation failure.
 
 ## IPv4+DNS initiated Dynamic Mapping
 
-TODO IPv4-initiated mapping is created in response to a DNS request. When the IPv4-only host requests an A record, translator requests both A and AAAA from its upstream or DNS cache. If an AAAA record exists but A does not, translator checks the explicit and dynamic mapping tables to see if an entry exists for this IPv6 address. If it does not exist, translator allocates an IPv4 host address out of dynamic pool and create a mapping between the AAAA-result and dynamic entry, for each result in the AAAA record. Translator MAY additionally translate all records for which an AAAA record exists, regardless of if the A record exists. 
+IPv4-initiated dynamic mappings are created in response to DNS queries from IPv4-only hosts. When an IPv4 host issues a DNS A query, the translator MUST perform corresponding upstream DNS queries for the corresponding AAAA record.
+
+The translator MAY choose to perform a second query for A records, and return that response if it exists, according to local policy.
+
+If one or more AAAA records are returned, the translator MUST, for each IPv6 address in the AAAA response, check whether a corresponding mapping already exists in either the explicit or dynamic mapping tables. If no mapping exists for a given IPv6 address, the translator MUST allocate an IPv4 address from the dynamic pool and create a new mapping entry binding that IPv6 address to the allocated IPv4 address.
+
+The translator MUST then synthesize A records using the mapped IPv4 addresses corresponding to the AAAA records and return them to the IPv4 host. If multiple AAAA records are present, each MUST be mapped independently.
+
+The TTL of the returned record MUST be the lesser of the TTL of the AAAA record used for synthesis, and the expiration time of the dynamic mapping entry.
 
 ## Reverse DNS
 
-TODO translator shall respond to reverse DNS requests (in-addr.arpa) within the dynamic pool, by querying the address mapping table for a dynamic or explicit address map, performing the equivalent reverse IPv6 DNS query (in6.arpa) and returning the corresponding PTR record.
+The translator MUST respond to reverse DNS (PTR) queries within the address space of its dynamic IPv4 pool. Upon receiving a query for an address within this pool (in-addr.arpa), the translator MUST look up the corresponding IPv6 address using its mapping tables.
+
+If a mapping exists, the translator MUST perform a reverse DNS query (in6.arpa) for the associated IPv6 address and return the resulting PTR record(s) to the requester. If multiple PTR records are returned, all applicable records SHOULD be included in the response.
+
+If no mapping exists for the queried IPv4 address, the translator SHOULD return an appropriate negative DNS response (e.g., NXDOMAIN).
 
 ## Mapping Timeouts
 
-TODO mapping shall track the last seen packet in either direction and last seen DNS query resulting in this IPV6 address, and retire the mapping after a configurable timeout. The same mapping is reused for all DNS queries resulting in the same IPv6 address, so any DNS entry and any IPv6 packet shall update the time.
+Each dynamic mapping entry MUST track activity timestamps, including the most recent packet observed in either translation direction and the most recent DNS query that resulted in the associated IPv6 address.
+
+A mapping entry MUST be retained and reused as long as it remains active. Activity is defined as:
+
+Any IPv4 or IPv6 packet translated using the mapping, in either direction.
+Any DNS query (A or AAAA) that results in the associated IPv6 address.
+
+The translator MUST retire (delete) a mapping entry after a configurable period of inactivity. This timeout value SHOULD be configurable by the operator and SHOULD balance efficient reuse of the IPv4 pool with stability of address mappings.
+
+When a mapping is retired, its IPv4 address is returned to the dynamic pool and becomes available for reuse by future mappings.
 
 # Deployment Architectures
 
 ## CHARON alone
 
--CHARON is default gateway for IPv4 island
--Not possible to route to non-IPv6 destinations
+       IPv4 Island
+   +----------------+
+   |   IPv4 Hosts   |
+   |                |
+   |   GW: CHARON   |
+   +--------+-------+
+            |
+            |
+     +------+------+
+     |   CHARON    |
+     |  Translator |
+     |   v4<->v6   |
+     +------+------+
+            |
+            |
+     +------+------+
+     |  IPv6 Only  |
+     |  Internet   |
+     +-------------+
+
+In this deployment, CHARON operates as the default gateway for the IPv4 island. The internal IPv4 prefix (e.g. 192.168.0.0/24) is mapped to an IPv6 prefix (e.g., 2001:db8:4600::/120) using stateless translation, while dynamic mappings are created as required for external IPv6 destinations.
+
+All traffic from IPv4 hosts traverses the translator. As no native IPv4 upstream connectivity exists, communication is limited to destinations reachable over IPv6. IPv4-only external destinations are not reachable in this architecture.
 
 ## CHARON with native IPv4
--CHARON is specific gateway for dynamic mapping range only
--Non-IPv6 destinations use native IPv4 path (NAT, likely)
+
+       IPv4 Island
+   +-----------------+
+   |   IPv4 Hosts    |
+   |                 |
+   |   GW: Router    |
+   +--------+--------+
+            |
+            |
+     +------+------+
+     | IPv4 Router |
+     +--+-------+--+
+        |       |
+        |       | Dynamic Pool (routed)
+        |       | e.g. 10.0.0.0/8
+        |       |
+        |   +---+--------+
+        |   |   CHARON   |
+        |   | Translator |
+        |   +---+--------+
+        |       |
+        |       |
+  +-----+--+  +-+------+
+  |  IPv4  |  |  IPv6  |
+  |Internet|  |Internet|
+  +--------+  +--------+
+
+In this deployment, the IPv4 island uses a conventional IPv4 router as its default gateway, providing native connectivity to the IPv4 Internet.
+
+CHARON is deployed as a separate translator and is reachable via a dedicated IPv4 prefix (e.g., 10.0.0.0/8) that is routed from the IPv4 router to the translator. This prefix serves as the dynamic mapping pool.
+
+Traffic destined for synthesized IPv4 addresses within the dynamic pool is routed to CHARON and translated to IPv6. All other traffic follows the native IPv4 path. This enables simultaneous access to both IPv4-only and IPv6-only destinations, using translation only when required.
+
+The CHARON translator and IPv4 Router may be virtual functions in the same router. 
 
 ## CHARON with 464XLAT
--CHARON is combined with CLAT for IPv4 island
--Non-IPv6 destinations use RFC6052 mapping entry
 
+       IPv4 Island
+   +----------------+
+   |   IPv4 Hosts   |
+   |                |
+   |   GW: CHARON   |
+   +--------+-------+
+            |
+            |
+     +------+------+
+     |   CHARON    |
+     |  Translator |
+     |   v4<->v6   |
+     +------+------+
+        |       |
+        |       | RFC6052 Prefix (routed)
+        |       | e.g. 64:ff9b::/96
+        |       |
+        |   +---+--------+
+        |   |    PLAT    |
+        |   | Translator |
+        |   +---+--------+
+        |       |
+        |       |
+  +-----+--+  +-+------+
+  |  IPv6  |  |  IPv4  |
+  |Internet|  |Internet|
+  +--------+  +--------+
+
+In this deployment, CHARON operates as the default gateway for the IPv4 island. The internal IPv4 prefix (e.g. 192.168.0.0/24) is mapped to an IPv6 prefix (e.g., 2001:db8:4600::/120) using stateless translation, while dynamic mappings are created as required for external IPv6 destinations.
+
+For packets which are not translated via a dynamic mapping, CHARON translates IPv4 packets using RFC6052-based encoded addresses (e.g. 64:ff9b::/96), acting as a CLAT in a 464XLAT architecture. 
+
+All traffic from IPv4 hosts traverses the translator. This enables simultaneous access to both IPv4-only and IPv6-only destinations, using translation for all packets.
 
 # Security Considerations
 
