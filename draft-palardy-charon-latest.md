@@ -59,6 +59,7 @@ The goal of CHARON is to flip this assumption, and allow IPv4-only networks to p
 
 ## Requirement for IP/ICMP Translation
 
+```
 If a source wants to send a packet to dest:
   \      source
    \   v4 | ds| v6
@@ -66,6 +67,7 @@ d   \______________
 e v4|  B  | B |  C
 s ds|  B  | A |  A
 t v6|  D  | A |  A
+```
 
 There are four possible scenarios which could be encountered:
 A. Both support IPv6 -> IPv6 is preferred and IPv6 used
@@ -86,7 +88,7 @@ For networks with v4-only servers accepting v6 connections, SIIT (RFC7915) can t
 
 ## Cached Host Address Resolution for Outside Networks
 As the IPv4 address space is insufficient for full IPv6 translation, some mechanism must be used to discover which IPv6 addresses are required and translate only those addresses. This translation 'window' is accessible via an IPv4 address pool, which exists within the IPv4 address space. This IPv4 address pool is routed to the translator. The translator creates mapping entires for single hosts (IPv4 <-> IPv6 pair) on demand within this address pool.
-
+```
         +---------------------------+
         |        IPv4 Network       |
         |                           |
@@ -118,7 +120,7 @@ As the IPv4 address space is insufficient for full IPv6 translation, some mechan
         |    +---------------+      |
         |                           |
         +---------------------------+
-
+```
 To allow the IPv4 host to initiate a connection to an IPv6 host, the IPv4 host must first perform a DNS A request. In response to the DNS request, the translator will perform a corresponding AAAA request, and create new mapping entries in response to DNS requests by IPv4 hosts, returning the new mapping entries to the IPv4 host in the DNS A response. This permits full network layer translation, without any higher layer protocol gateways. 
 
 To allow an IPv6 host to initiate a connection to an IPv4 host, the translator creates new mapping entires in response to the first IPv6 packet seen by that host, allowing the mapping entry to be used as a source address in the IPv4 packet. This direction does not depend on DNS.
@@ -181,7 +183,7 @@ When a mapping is retired, its IPv4 address is returned to the dynamic pool and 
 # Deployment Architectures
 
 ## CHARON alone
-
+```
        IPv4 Island
    +----------------+
    |   IPv4 Hosts   |
@@ -201,13 +203,13 @@ When a mapping is retired, its IPv4 address is returned to the dynamic pool and 
      |  IPv6 Only  |
      |  Internet   |
      +-------------+
-
+```
 In this deployment, CHARON operates as the default gateway for the IPv4 island. The internal IPv4 prefix (e.g. 192.168.0.0/24) is mapped to an IPv6 prefix (e.g., 2001:db8:4600::/120) using stateless translation, while dynamic mappings are created as required for external IPv6 destinations.
 
 All traffic from IPv4 hosts traverses the translator. As no native IPv4 upstream connectivity exists, communication is limited to destinations reachable over IPv6. IPv4-only external destinations are not reachable in this architecture.
 
 ## CHARON with native IPv4
-
+```
        IPv4 Island
    +-----------------+
    |   IPv4 Hosts    |
@@ -233,7 +235,7 @@ All traffic from IPv4 hosts traverses the translator. As no native IPv4 upstream
   |  IPv4  |  |  IPv6  |
   |Internet|  |Internet|
   +--------+  +--------+
-
+```
 In this deployment, the IPv4 island uses a conventional IPv4 router as its default gateway, providing native connectivity to the IPv4 Internet.
 
 CHARON is deployed as a separate translator and is reachable via a dedicated IPv4 prefix (e.g., 10.0.0.0/8) that is routed from the IPv4 router to the translator. This prefix serves as the dynamic mapping pool.
@@ -243,7 +245,7 @@ Traffic destined for synthesized IPv4 addresses within the dynamic pool is route
 The CHARON translator and IPv4 Router may be virtual functions in the same router. 
 
 ## CHARON with 464XLAT
-
+```
        IPv4 Island
    +----------------+
    |   IPv4 Hosts   |
@@ -271,7 +273,7 @@ The CHARON translator and IPv4 Router may be virtual functions in the same route
   |  IPv6  |  |  IPv4  |
   |Internet|  |Internet|
   +--------+  +--------+
-
+```
 In this deployment, CHARON operates as the default gateway for the IPv4 island. The internal IPv4 prefix (e.g. 192.168.0.0/24) is mapped to an IPv6 prefix (e.g., 2001:db8:4600::/120) using stateless translation, while dynamic mappings are created as required for external IPv6 destinations.
 
 For packets which are not translated via a dynamic mapping, CHARON translates IPv4 packets using RFC6052-based encoded addresses (e.g. 64:ff9b::/96), acting as a CLAT in a 464XLAT architecture. 
