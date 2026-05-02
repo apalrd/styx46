@@ -133,15 +133,47 @@ With this option, a SIIT translator may translate addresses using any of the fol
 - Explicitly-configured IPv4 <-> IPv6 address mapping [RFC7757]
 - Dynamically-configured IPv4 <-> IPv6 address mapping [This Document]
 
-All three methods may be used simultaneously.
+All three methods may be used simultaneously, see [Deployment Architectures] for examples. 
 
-## 
+TODO dynamic mapping entries map a single IPV4 and a single IPv6, and are re-used for all cases where that IPv6 is seen (including IPv6-initiated mappings and multple DNS hostnames)
 
+## IPv6 initiated Dynamic Mapping
+
+TODO IPv6-initiated mappings are created when an IPv6 packet is received by the translator, where the destination address matches an existing address mapping, but the source address cannot be mapped. The translator will allocate an IPv4 host address out of its dynamic pool and create a mapping between the source IPv6 address and the dynamic IPv4 host address.
+
+## IPv4+DNS initiated Dynamic Mapping
+
+TODO IPv4-initiated mapping is created in response to a DNS request. When the IPv4-only host requests an A record, translator requests both A and AAAA from its upstream or DNS cache. If an AAAA record exists but A does not, translator checks the explicit and dynamic mapping tables to see if an entry exists for this IPv6 address. If it does not exist, translator allocates an IPv4 host address out of dynamic pool and create a mapping between the AAAA-result and dynamic entry, for each result in the AAAA record. Translator MAY additionally translate all records for which an AAAA record exists, regardless of if the A record exists. 
+
+## Reverse DNS
+
+TODO translator shall respond to reverse DNS requests (in-addr.arpa) within the dynamic pool, by querying the address mapping table for a dynamic or explicit address map, performing the equivalent reverse IPv6 DNS query (in6.arpa) and returning the corresponding PTR record.
+
+## Mapping Timeouts
+
+TODO mapping shall track the last seen packet in either direction and last seen DNS query resulting in this IPV6 address, and retire the mapping after a configurable timeout. The same mapping is reused for all DNS queries resulting in the same IPv6 address, so any DNS entry and any IPv6 packet shall update the time.
+
+# Deployment Architectures
+
+## CHARON alone
+
+-CHARON is default gateway for IPv4 island
+-Not possible to route to non-IPv6 destinations
+
+## CHARON with native IPv4
+-CHARON is specific gateway for dynamic mapping range only
+-Non-IPv6 destinations use native IPv4 path (NAT, likely)
+
+## CHARON with 464XLAT
+-CHARON is combined with CLAT for IPv4 island
+-Non-IPv6 destinations use RFC6052 mapping entry
 
 
 # Security Considerations
 
 TODO Security
+
+-Mapping range is NOT private address space
 
 
 # IANA Considerations
