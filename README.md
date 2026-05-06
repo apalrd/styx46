@@ -3,16 +3,16 @@ The cursed river that helps your IPv4-only clients exit the underworld to the IP
 
 
 ## Basically how it works:
-```diff
-++ have old ass computer which can only do IPv4
-++ maybe am vintage collector and like SGI workstations, they are beautiful
-++ the world has moved to IPv6, can't browse 4chan on your old machine
-++ old ass computer sends A-record DNS query to Styx
-++ styx finds glorious AAAA-record, and uses it to plot a course out of the underworld
-++ styx returns the entry point of this course as a valid IPv4 address in your chosen translation subnet
-++ tayga ferries packets from the underworld to the modern world and back along this course
-++ client browses 4chan from IRIX happily
-```
+
+$\color{#789922}\text{>have old ass computer which can only do IPv4}$\
+$\color{#789922}\text{>maybe am vintage collector and like SGI}$ $\color{#789922}\text{workstations, they are beautiful}$\
+$\color{#789922}\text{>the world has moved to IPv6, can't browse}$ $\color{#789922}\text{4chan on your old machine}$\
+$\color{#789922}\text{>old ass computer sends A-record DNS query}$ $\color{#789922}\text{to Styx}$\
+$\color{#789922}\text{>styx finds glorious AAAA-record, and uses it}$ $\color{#789922}\text{to plot a course out of the underworld}$\
+$\color{#789922}\text{>styx returns the entry point of this course as a}$ $\color{#789922}\text{valid IPv4 address in your chosen translation subnet}$\
+$\color{#789922}\text{>tayga ferries packets from the underworld}$ $\color{#789922}\text{to the modern world and back along this course}$\
+$\color{#789922}\text{>client browses 4chan from IRIX happily}$
+
 
 ## How it actually works:
 - You setup `styx` as a CLAT (client-side translator), to provide native IPV4 support for your legacy clients in an IPv6 world
