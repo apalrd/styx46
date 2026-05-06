@@ -53,5 +53,8 @@ func Load(path string) (*Config, error) {
         return nil, fmt.Errorf("CIDR must be a network address, not a host address")
     }
     cfg.Pool = network
+    if cfg.BinaryPath == "" {
+        cfg.BinaryPath = "tayga"
+    }
     return &cfg, nil
 }
